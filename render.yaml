@@ -1,0 +1,214 @@
+# render.yaml
+
+databases:
+  - name: danswer-db
+    databaseName: danswer
+    user: danswer_user
+    postgresVersion: 15
+    # Use Render's Secret Management for the password
+    password: {{ env.DATABASE_PASSWORD }}
+
+addons:
+  - type: redis
+    name: danswer-cache
+    plan: standard
+
+services:
+  # API Server
+  - name: danswer-api-server
+    type: web
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    buildCommand: |
+      alembic upgrade head
+    startCommand: |
+      uvicorn danswer.main:app --host 0.0.0.0 --port 8080
+    envVars:
+      # Database Configuration
+      - key: POSTGRES_HOST
+        value: {{ databases.danswer-db.internalHostname }}
+      - key: POSTGRES_USER
+        value: {{ databases.danswer-db.user }}
+      - key: POSTGRES_PASSWORD
+        value: {{ env.DATABASE_PASSWORD }}  # Use Render Secret
+      - key: POSTGRES_DB
+        value: {{ databases.danswer-db.databaseName }}
+      # Redis Configuration
+      - key: REDIS_HOST
+        value: {{ addons.danswer-cache.internalHostname }}
+      - key: REDIS_PORT
+        value: {{ addons.danswer-cache.port }}
+      # Vespa Configuration
+      - key: VESPA_HOST
+        value: danswer-vespa-service
+      - key: VESPA_PORT
+        value: '8081'
+      # Auth Settings
+      - key: AUTH_TYPE
+        value: 'disabled'  # Change to 'google', 'email', etc., as needed
+      - key: SESSION_EXPIRE_TIME_SECONDS
+        value: '3600'  # Example: 1 hour
+      - key: ENCRYPTION_KEY_SECRET
+        value: {{ env.ENCRYPTION_KEY_SECRET }}  # Use Render Secret
+      - key: VALID_EMAIL_DOMAINS
+        value: 'example.com'  # Comma-separated domains
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        value: {{ env.GOOGLE_OAUTH_CLIENT_ID }}  # Use Render Secret
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        value: {{ env.GOOGLE_OAUTH_CLIENT_SECRET }}  # Use Render Secret
+      # Other Environment Variables
+      - key: WEB_DOMAIN
+        value: 'https://danswer-web-server.onrender.com'  # Update with your web server URL
+      - key: MODEL_SERVER_HOST
+        value: danswer-inference-model-server
+      - key: MODEL_SERVER_PORT
+        value: '9000'
+      - key: LOG_LEVEL
+        value: 'info'
+      # Add other environment variables as needed, following the same pattern
+    plan: standard  # Adjust plan based on resource needs
+    autoDeploy: true
+
+  # Background Worker
+  - name: danswer-background-worker
+    type: worker
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    startCommand: |
+      /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+    envVars:
+      # Database Configuration
+      - key: POSTGRES_HOST
+        value: {{ databases.danswer-db.internalHostname }}
+      - key: POSTGRES_USER
+        value: {{ databases.danswer-db.user }}
+      - key: POSTGRES_PASSWORD
+        value: {{ env.DATABASE_PASSWORD }}  # Use Render Secret
+      - key: POSTGRES_DB
+        value: {{ databases.danswer-db.databaseName }}
+      # Redis Configuration
+      - key: REDIS_HOST
+        value: {{ addons.danswer-cache.internalHostname }}
+      - key: REDIS_PORT
+        value: {{ addons.danswer-cache.port }}
+      # Vespa Configuration
+      - key: VESPA_HOST
+        value: danswer-vespa-service
+      - key: VESPA_PORT
+        value: '8081'
+      # Other Environment Variables
+      - key: MODEL_SERVER_HOST
+        value: danswer-inference-model-server
+      - key: MODEL_SERVER_PORT
+        value: '9000'
+      - key: INDEXING_MODEL_SERVER_HOST
+        value: danswer-indexing-model-server
+      - key: LOG_LEVEL
+        value: 'info'
+      # Add other environment variables as needed
+    plan: standard  # Adjust plan based on resource needs
+    autoDeploy: true
+
+  # Web Server
+  - name: danswer-web-server
+    type: web
+    env: docker
+    dockerfilePath: ./web/Dockerfile
+    envVars:
+      # Build Arguments (Set 'build: true' to pass them during build)
+      - key: NEXT_PUBLIC_DISABLE_STREAMING
+        value: 'false'
+        build: true
+      - key: NEXT_PUBLIC_NEW_CHAT_DIRECTS_TO_SAME_PERSONA
+        value: 'false'
+        build: true
+      - key: NEXT_PUBLIC_POSITIVE_PREDEFINED_FEEDBACK_OPTIONS
+        value: ''
+        build: true
+      - key: NEXT_PUBLIC_NEGATIVE_PREDEFINED_FEEDBACK_OPTIONS
+        value: ''
+        build: true
+      - key: NEXT_PUBLIC_DISABLE_LOGOUT
+        value: 'false'
+        build: true
+      - key: NEXT_PUBLIC_DEFAULT_SIDEBAR_OPEN
+        value: 'true'
+        build: true
+      - key: NEXT_PUBLIC_THEME
+        value: 'light'  # or 'dark'
+        build: true
+      - key: NEXT_PUBLIC_DO_NOT_USE_TOGGLE_OFF_DANSWER_POWERED
+        value: 'false'
+        build: true
+      # Runtime Environment Variables
+      - key: INTERNAL_URL
+        value: 'https://danswer-api-server.onrender.com'  # Update with your API server URL
+      - key: WEB_DOMAIN
+        value: 'https://danswer-web-server.onrender.com'
+    plan: starter
+    autoDeploy: true
+
+  # Inference Model Server
+  - name: danswer-inference-model-server
+    type: web
+    env: docker
+    dockerfilePath: ./backend/Dockerfile.model_server
+    startCommand: |
+      uvicorn model_server.main:app --host 0.0.0.0 --port 9000
+    envVars:
+      - key: DISABLE_MODEL_SERVER
+        value: 'False'
+      - key: LOG_LEVEL
+        value: 'info'
+      # Add other environment variables as needed
+    plan: standard  # Adjust plan based on resource needs
+    autoDeploy: true
+
+  # Indexing Model Server
+  - name: danswer-indexing-model-server
+    type: web
+    env: docker
+    dockerfilePath: ./backend/Dockerfile.model_server
+    startCommand: |
+      uvicorn model_server.main:app --host 0.0.0.0 --port 9000
+    envVars:
+      - key: DISABLE_MODEL_SERVER
+        value: 'False'
+      - key: INDEXING_ONLY
+        value: 'True'
+      - key: LOG_LEVEL
+        value: 'info'
+      # Add other environment variables as needed
+    plan: standard  # Adjust plan based on resource needs
+    autoDeploy: true
+
+  # Vespa Index Service (if possible to run on Render)
+  - name: danswer-vespa-service
+    type: web
+    env: docker
+    dockerfilePath: ./index/Dockerfile  # Adjust the path to Vespa's Dockerfile
+    startCommand: |
+      # Command to start Vespa
+    envVars:
+      - key: LOG_LEVEL
+        value: 'info'
+      # Add other environment variables as needed
+    plan: standard_plus  # Vespa may require more resources
+    autoDeploy: true
+
+  # Optional: Nginx Service (Not required if using Render's routing)
+  # You can remove this section if you don't need Nginx
+  - name: danswer-nginx
+    type: web
+    env: docker
+    dockerfilePath: ./deployment/nginx/Dockerfile  # Adjust the path to Nginx Dockerfile
+    startCommand: |
+      nginx -g 'daemon off;'
+    envVars:
+      - key: DOMAIN
+        value: 'your-domain.com'  # Replace with your domain
+    plan: starter
+    autoDeploy: true
+
+# Note: Ensure that any sensitive information is stored using Render's Secret Management.
+# For example, API keys, passwords, and encryption keys should not be hardcoded.
