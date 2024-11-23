@@ -6,7 +6,7 @@ databases:
     user: danswer_user
     postgresVersion: 15
     # Use Render's Secret Management for the password
-    password: {{ env.DATABASE_PASSWORD }}
+    password: ${DATABASE_PASSWORD}  # Reference to a secret environment variable
 
 addons:
   - type: redis
@@ -26,18 +26,18 @@ services:
     envVars:
       # Database Configuration
       - key: POSTGRES_HOST
-        value: {{ databases.danswer-db.internalHostname }}
+        value: ${databases.danswer-db.internalHostname}
       - key: POSTGRES_USER
-        value: {{ databases.danswer-db.user }}
+        value: ${databases.danswer-db.user}
       - key: POSTGRES_PASSWORD
-        value: {{ env.DATABASE_PASSWORD }}  # Use Render Secret
+        value: ${DATABASE_PASSWORD}  # Reference to a secret environment variable
       - key: POSTGRES_DB
-        value: {{ databases.danswer-db.databaseName }}
+        value: ${databases.danswer-db.databaseName}
       # Redis Configuration
       - key: REDIS_HOST
-        value: {{ addons.danswer-cache.internalHostname }}
+        value: ${addons.danswer-cache.internalHostname}
       - key: REDIS_PORT
-        value: {{ addons.danswer-cache.port }}
+        value: ${addons.danswer-cache.internalPort}
       # Vespa Configuration
       - key: VESPA_HOST
         value: danswer-vespa-service
@@ -49,16 +49,16 @@ services:
       - key: SESSION_EXPIRE_TIME_SECONDS
         value: '3600'  # Example: 1 hour
       - key: ENCRYPTION_KEY_SECRET
-        value: {{ env.ENCRYPTION_KEY_SECRET }}  # Use Render Secret
+        value: ${ENCRYPTION_KEY_SECRET}  # Reference to a secret environment variable
       - key: VALID_EMAIL_DOMAINS
         value: 'example.com'  # Comma-separated domains
       - key: GOOGLE_OAUTH_CLIENT_ID
-        value: {{ env.GOOGLE_OAUTH_CLIENT_ID }}  # Use Render Secret
+        value: ${GOOGLE_OAUTH_CLIENT_ID}  # Reference to a secret environment variable
       - key: GOOGLE_OAUTH_CLIENT_SECRET
-        value: {{ env.GOOGLE_OAUTH_CLIENT_SECRET }}  # Use Render Secret
+        value: ${GOOGLE_OAUTH_CLIENT_SECRET}  # Reference to a secret environment variable
       # Other Environment Variables
       - key: WEB_DOMAIN
-        value: 'https://danswer-web-server.onrender.com'  # Update with your web server URL
+        value: 'https://${self.host}'
       - key: MODEL_SERVER_HOST
         value: danswer-inference-model-server
       - key: MODEL_SERVER_PORT
@@ -79,18 +79,18 @@ services:
     envVars:
       # Database Configuration
       - key: POSTGRES_HOST
-        value: {{ databases.danswer-db.internalHostname }}
+        value: ${databases.danswer-db.internalHostname}
       - key: POSTGRES_USER
-        value: {{ databases.danswer-db.user }}
+        value: ${databases.danswer-db.user}
       - key: POSTGRES_PASSWORD
-        value: {{ env.DATABASE_PASSWORD }}  # Use Render Secret
+        value: ${DATABASE_PASSWORD}  # Reference to a secret environment variable
       - key: POSTGRES_DB
-        value: {{ databases.danswer-db.databaseName }}
+        value: ${databases.danswer-db.databaseName}
       # Redis Configuration
       - key: REDIS_HOST
-        value: {{ addons.danswer-cache.internalHostname }}
+        value: ${addons.danswer-cache.internalHostname}
       - key: REDIS_PORT
-        value: {{ addons.danswer-cache.port }}
+        value: ${addons.danswer-cache.internalPort}
       # Vespa Configuration
       - key: VESPA_HOST
         value: danswer-vespa-service
@@ -142,9 +142,9 @@ services:
         build: true
       # Runtime Environment Variables
       - key: INTERNAL_URL
-        value: 'https://danswer-api-server.onrender.com'  # Update with your API server URL
+        value: 'https://danswer-api-server.onrender.com'
       - key: WEB_DOMAIN
-        value: 'https://danswer-web-server.onrender.com'
+        value: 'https://${self.host}'
     plan: starter
     autoDeploy: true
 
